@@ -1,0 +1,39 @@
+name: Repo Ranger Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+
+jobs:
+  review:
+    name: Review Code
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Repo Ranger
+        env:
+          INPUT_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          INPUT_MODEL: "gpt-4"
+          INPUT_TEMPERATURE: "0.7"
+          INPUT_MAX_TOKENS: "2000"
+          INPUT_POST_PR_COMMENT: "true"
+          INPUT_USE_CHECKS: "true"
+          INPUT_INLINE_COMMENTS: "true"
+          INPUT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOG_LEVEL: "debug"
+        run: |
+          go build -o repo-ranger
+          ./repo-ranger

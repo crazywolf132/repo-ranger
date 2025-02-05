@@ -74,6 +74,67 @@ export INPUT_TEMPERATURE="0.7"
 export INPUT_MAX_TOKENS="2000"
 ```
 
+## Using Repo Ranger on Your Repository
+
+To enable Repo Ranger on your own repository:
+
+1. Create a `.github/workflows/repo-ranger.yml` file with the following content:
+```yaml
+name: Repo Ranger Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**.go'  # Adjust file patterns as needed
+      - 'go.mod'
+      - 'go.sum'
+
+jobs:
+  review:
+    name: Review Code
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Repo Ranger
+        env:
+          INPUT_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          INPUT_MODEL: "gpt-4"
+          INPUT_TEMPERATURE: "0.7"
+          INPUT_MAX_TOKENS: "2000"
+          INPUT_POST_PR_COMMENT: "true"
+          INPUT_USE_CHECKS: "true"
+          INPUT_INLINE_COMMENTS: "true"
+          INPUT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOG_LEVEL: "debug"
+        run: |
+          go build -o repo-ranger
+          ./repo-ranger
+```
+
+2. Add your OpenAI API key as a repository secret:
+   - Go to your repository settings
+   - Navigate to "Secrets and variables" → "Actions"
+   - Click "New repository secret"
+   - Name: `OPENAI_API_KEY`
+   - Value: Your OpenAI API key
+
+3. Configure the workflow (optional):
+   - Adjust the file patterns in the `paths` section to match your needs
+   - Modify the OpenAI parameters (`INPUT_MODEL`, `INPUT_TEMPERATURE`, etc.)
+   - Enable/disable features using the boolean flags
+
+Now, Repo Ranger will automatically review all pull requests that modify Go files in your repository!
+
 ## Installation
 
 ### GitHub Actions Workflow
