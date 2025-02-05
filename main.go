@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Payload is the JSON structure sent to the review API.
@@ -50,6 +52,34 @@ const (
 	maxChunkSize      = 10000 // maximum characters per diff chunk
 )
 
+var (
+	// ErrMissingInputs is returned when required inputs are not provided
+	ErrMissingInputs = errors.New("missing required inputs")
+	// ErrNoDiffOutput is returned when no code changes are detected
+	ErrNoDiffOutput = errors.New("no code changes detected")
+	// ErrAPICall is returned when there's an error calling the review API
+	ErrAPICall = errors.New("error calling review API")
+	// ErrGitHubAPI is returned when there's an error interacting with GitHub API
+	ErrGitHubAPI = errors.New("error interacting with GitHub API")
+)
+
+func init() {
+	// Configure logrus
+	log.SetFormatter(&log.JSONFormatter{})
+	log.SetOutput(os.Stdout)
+	
+	// Set log level based on environment variable, default to info
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "info"
+	}
+	level, err := log.ParseLevel(logLevel)
+	if err != nil {
+		level = log.InfoLevel
+	}
+	log.SetLevel(level)
+}
+
 func main() {
 	// Retrieve inputs.
 	apiURL := os.Getenv("INPUT_API_URL")
@@ -68,113 +98,134 @@ func main() {
 
 	// Validate required inputs.
 	if apiURL == "" || apiKey == "" || model == "" {
-		log.Fatalf("INPUT_API_URL, INPUT_API_KEY, and INPUT_MODEL are required inputs")
+		log.WithFields(log.Fields{
+			"apiURL": apiURL != "",
+			"apiKey": apiKey != "",
+			"model":  model != "",
+		}).Fatal("Missing required inputs")
+		os.Exit(1)
 	}
 
-	log.Printf("Executing diff command: %s", diffCommand)
+	log.WithFields(log.Fields{
+		"command": diffCommand,
+		"timeout": diffTimeoutSec,
+	}).Info("Executing diff command")
+
 	diffOutput, err := runDiff(diffCommand, time.Duration(diffTimeoutSec)*time.Second)
 	if err != nil {
-		log.Fatalf("Error executing diff command: %v", err)
+		log.WithError(err).Fatal("Failed to execute diff command")
 	}
+
 	trimmedDiff := strings.TrimSpace(diffOutput)
 	if trimmedDiff == "" {
-		log.Println("No code changes detected. Exiting.")
+		log.Info("No code changes detected")
 		os.Exit(0)
 	}
 
 	var finalReview string
 	if len(trimmedDiff) <= maxChunkSize {
-		log.Println("Diff size is within limits; performing a single detailed review call.")
+		log.WithField("diffSize", len(trimmedDiff)).Debug("Diff size is within limits")
 		detailedPrompt := buildDetailedPrompt(trimmedDiff)
 		payload := Payload{Model: model, Prompt: detailedPrompt}
 		finalReview, err = callAPIWithRetries(apiURL, apiKey, payload, time.Duration(apiTimeoutSec)*time.Second)
 		if err != nil {
-			log.Fatalf("Error during API call: %v", err)
+			log.WithError(err).Fatal("Failed during API call")
 		}
 	} else {
-		log.Println("Large diff detected; performing multi-step review process.")
-		// Obtain a high-level summary.
+		log.WithField("diffSize", len(trimmedDiff)).Info("Large diff detected; performing multi-step review")
+		
 		summaryInput := trimmedDiff
 		if len(trimmedDiff) > maxChunkSize {
 			summaryInput = trimmedDiff[:maxChunkSize]
 		}
+		
 		summary, err := getSummary(summaryInput, model, apiURL, apiKey, time.Duration(apiTimeoutSec)*time.Second)
 		if err != nil {
-			log.Fatalf("Error obtaining summary: %v", err)
+			log.WithError(err).Fatal("Failed to obtain summary")
 		}
-		log.Println("High-level summary obtained.")
+		log.Debug("High-level summary obtained")
 
-		// Split diff into chunks and process detailed reviews.
 		chunks := splitIntoChunks(trimmedDiff, maxChunkSize)
 		var detailedReviews []string
 		for i, chunk := range chunks {
-			log.Printf("Reviewing chunk %d/%d", i+1, len(chunks))
+			log.WithFields(log.Fields{
+				"chunk": i + 1,
+				"total": len(chunks),
+				"size":  len(chunk),
+			}).Info("Reviewing chunk")
+			
 			detail, err := getDetailedReview(chunk, model, apiURL, apiKey, time.Duration(apiTimeoutSec)*time.Second)
 			if err != nil {
-				log.Fatalf("Error during detailed review for chunk %d: %v", i+1, err)
+				log.WithFields(log.Fields{
+					"chunk": i + 1,
+					"error": err,
+				}).Fatal("Failed during detailed review")
 			}
 			detailedReviews = append(detailedReviews, detail)
 		}
 		finalReview = fmt.Sprintf("### High-Level Summary\n%s\n\n### Detailed Review\n%s", summary, strings.Join(detailedReviews, "\n\n"))
 	}
 
-	log.Println("Aggregated Review Output:")
-	log.Println(finalReview)
+	log.Debug("Review output generated successfully")
 
-	// Format the review for a developer-friendly PR comment.
 	formattedReview := formatReviewForPR(finalReview)
 
-	// Set the GitHub Actions output.
 	if outputPath := os.Getenv("GITHUB_OUTPUT"); outputPath != "" {
 		if err := appendOutput(outputPath, "review", formattedReview); err != nil {
-			log.Printf("Error writing GitHub Action output: %v", err)
+			log.WithError(err).Error("Failed to write GitHub Action output")
 		}
 	}
 
-	// Optionally post the aggregated review as a PR comment.
 	if postPRComment && githubToken != "" {
 		if prEvent, err := parsePullRequestEvent(); err == nil && prEvent.PullRequest.Number > 0 {
 			if err := postPRCommentFunc(githubToken, prEvent, formattedReview); err != nil {
-				log.Printf("Error posting PR comment: %v", err)
+				log.WithFields(log.Fields{
+					"pr":    prEvent.PullRequest.Number,
+					"repo":  prEvent.Repository.FullName,
+					"error": err,
+				}).Error("Failed to post PR comment")
 			} else {
-				log.Println("Aggregated PR comment posted successfully.")
+				log.Info("PR comment posted successfully")
 			}
 		} else {
-			log.Println("No valid pull request event detected; skipping PR comment.")
+			log.WithError(err).Debug("No valid pull request event detected")
 		}
 	} else {
-		log.Println("PR comment posting is disabled or GitHub token not provided.")
+		log.Debug("PR comment posting is disabled or GitHub token not provided")
 	}
 
-	// Optionally create a GitHub Check Run.
 	if useChecks && githubToken != "" {
 		if err := createCheckRun(githubToken, formattedReview); err != nil {
-			log.Printf("Error creating GitHub Check Run: %v", err)
+			log.WithError(err).Error("Failed to create GitHub Check Run")
 		} else {
-			log.Println("GitHub Check Run created successfully.")
+			log.Info("GitHub Check Run created successfully")
 		}
 	} else {
-		log.Println("GitHub Check Run creation is disabled or GitHub token not provided.")
+		log.Debug("GitHub Check Run creation is disabled or GitHub token not provided")
 	}
 
-	// Optionally post inline review comments.
 	if inlineComments && githubToken != "" {
 		if prEvent, err := parsePullRequestEvent(); err == nil && prEvent.PullRequest.Number > 0 {
 			inlineCommentsList := parseInlineComments(finalReview)
 			if len(inlineCommentsList) > 0 {
 				if err := postInlineComments(githubToken, prEvent, inlineCommentsList); err != nil {
-					log.Printf("Error posting inline comments: %v", err)
+					log.WithFields(log.Fields{
+						"pr":       prEvent.PullRequest.Number,
+						"repo":     prEvent.Repository.FullName,
+						"comments": len(inlineCommentsList),
+						"error":    err,
+					}).Error("Failed to post inline comments")
 				} else {
-					log.Println("Inline review comments posted successfully.")
+					log.WithField("count", len(inlineCommentsList)).Info("Inline comments posted successfully")
 				}
 			} else {
-				log.Println("No inline comments found in the aggregated review.")
+				log.Debug("No inline comments found in the aggregated review")
 			}
 		} else {
-			log.Println("No valid pull request event detected; skipping inline comments.")
+			log.WithError(err).Debug("No valid pull request event detected")
 		}
 	} else {
-		log.Println("Inline comment posting is disabled or GitHub token not provided.")
+		log.Debug("Inline comment posting is disabled or GitHub token not provided")
 	}
 }
 
@@ -217,60 +268,84 @@ func getEnvAsBool(name string, defaultVal bool) bool {
 func runDiff(commandStr string, timeout time.Duration) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+
 	cmd := exec.CommandContext(ctx, "sh", "-c", commandStr)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("command %q failed: %v; stderr: %s", commandStr, err, stderr.String())
+	output, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return "", fmt.Errorf("diff command failed with stderr: %s: %w", exitErr.Stderr, err)
+		}
+		return "", fmt.Errorf("failed to execute diff command: %w", err)
 	}
-	return stdout.String(), nil
+
+	return string(output), nil
 }
 
 // callAPIWithRetries calls the review API with retry logic.
 func callAPIWithRetries(apiURL, apiKey string, payload Payload, timeout time.Duration) (string, error) {
-	var review string
-	var err error
-	for attempt := 0; attempt <= apiCallMaxRetries; attempt++ {
-		review, err = callAPI(apiURL, apiKey, payload, timeout)
+	var lastErr error
+	for i := 0; i <= apiCallMaxRetries; i++ {
+		if i > 0 {
+			log.WithFields(log.Fields{
+				"attempt": i,
+				"delay":   apiCallRetryDelay,
+			}).Debug("Retrying API call")
+			time.Sleep(apiCallRetryDelay)
+		}
+
+		review, err := callAPI(apiURL, apiKey, payload, timeout)
 		if err == nil {
 			return review, nil
 		}
-		log.Printf("API call attempt %d failed: %v", attempt+1, err)
-		time.Sleep(apiCallRetryDelay)
+		lastErr = err
+		log.WithFields(log.Fields{
+			"attempt": i + 1,
+			"error":   err,
+		}).Warn("API call failed")
 	}
-	return "", fmt.Errorf("API call failed after %d attempts: %v", apiCallMaxRetries+1, err)
+	return "", fmt.Errorf("%w: %v", ErrAPICall, lastErr)
 }
 
 // callAPI sends the payload to the review API and returns the review.
 func callAPI(apiURL, apiKey string, payload Payload, timeout time.Duration) (string, error) {
-	payloadBytes, err := json.Marshal(payload)
+	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		return "", fmt.Errorf("error marshalling payload: %v", err)
+		return "", fmt.Errorf("failed to marshal payload: %w", err)
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(payloadBytes))
+
+	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return "", fmt.Errorf("error creating HTTP request: %v", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
-	req.Header.Set("User-Agent", "Repo-Ranger-Action/2.0")
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("error executing HTTP request: %v", err)
+		return "", fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("API returned non-200 status code %d: %s", resp.StatusCode, string(body))
+	}
+
 	var apiResp APIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
-		return "", fmt.Errorf("error decoding API response: %v", err)
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return "", fmt.Errorf("failed to unmarshal response: %w", err)
 	}
+
 	return apiResp.Review, nil
 }
 
