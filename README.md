@@ -36,6 +36,44 @@
 | `inline_comments`  | Whether to post inline review comments for specific changes (`true`/`false`).                        | `false`                | No       |
 | `github_token`     | A GitHub token to post PR comments, inline comments, and/or create Check Runs.                       | –                      | No       |
 
+## Configuration
+
+The following environment variables are used to configure the tool:
+
+### Required Configuration
+- `INPUT_API_URL`: API endpoint for code review (default: https://api.openai.com/v1/chat/completions for OpenAI)
+- `INPUT_API_KEY`: API key for authentication (OpenAI API key)
+- `INPUT_MODEL`: Model to use (e.g., "gpt-4", "gpt-3.5-turbo")
+
+### Optional Configuration
+- `INPUT_DIFF_COMMAND`: Command to generate diff (default: "git diff HEAD~1 HEAD")
+- `INPUT_DIFF_TIMEOUT`: Timeout in seconds for diff command (default: 30)
+- `INPUT_API_TIMEOUT`: Timeout in seconds for API calls (default: 30)
+- `INPUT_POST_PR_COMMENT`: Whether to post review as PR comment (default: true)
+- `INPUT_USE_CHECKS`: Whether to create GitHub check runs (default: false)
+- `INPUT_INLINE_COMMENTS`: Whether to post inline comments (default: false)
+- `INPUT_GITHUB_TOKEN`: GitHub token for posting comments
+- `INPUT_TEMPERATURE`: OpenAI temperature parameter (default: 0.7)
+- `INPUT_MAX_TOKENS`: OpenAI max tokens parameter (default: 2000)
+- `LOG_LEVEL`: Logging level (debug, info, warn, error)
+
+### OpenAI Integration
+
+This tool now supports OpenAI's chat completion API out of the box. To use OpenAI:
+
+1. Set `INPUT_API_KEY` to your OpenAI API key
+2. Leave `INPUT_API_URL` empty to use the default OpenAI endpoint, or set it to a custom endpoint
+3. Set `INPUT_MODEL` to an OpenAI model (e.g., "gpt-4" or "gpt-3.5-turbo")
+4. Optionally configure `INPUT_TEMPERATURE` and `INPUT_MAX_TOKENS` to control the AI's behavior
+
+Example configuration for OpenAI:
+```bash
+export INPUT_API_KEY="your-openai-api-key"
+export INPUT_MODEL="gpt-4"
+export INPUT_TEMPERATURE="0.7"
+export INPUT_MAX_TOKENS="2000"
+```
+
 ## Installation
 
 ### GitHub Actions Workflow
