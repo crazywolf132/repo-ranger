@@ -1,0 +1,49 @@
+name: "Repo Ranger"
+description: >
+  An enterprise‑grade GitHub Action that performs detailed, line‑by‑line AI‑driven code reviews.
+  It handles large diffs by summarizing changes and then reviewing them in chunks.
+  Optionally, it creates GitHub Check Runs, posts an aggregated PR comment, and even adds inline code review comments.
+author: "Your Name"
+inputs:
+  api_url:
+    description: "The API endpoint URL for code review."
+    required: true
+  api_key:
+    description: "The API key for authentication with the review API."
+    required: true
+  model:
+    description: "The model name to use (e.g., gpt-4)."
+    required: true
+  diff_command:
+    description: "The git diff command to run (default: 'git diff HEAD~1 HEAD')."
+    required: false
+    default: "git diff HEAD~1 HEAD"
+  diff_timeout:
+    description: "Timeout (in seconds) for the diff command (default: 30)."
+    required: false
+    default: "30"
+  api_timeout:
+    description: "Timeout (in seconds) for each API call (default: 30)."
+    required: false
+    default: "30"
+  post_pr_comment:
+    description: "Whether to post the aggregated review as a PR comment (true/false, default: true)."
+    required: false
+    default: "true"
+  use_checks:
+    description: "Whether to create a GitHub Check Run with the review output (true/false, default: false)."
+    required: false
+    default: "false"
+  inline_comments:
+    description: "Whether to post inline review comments for specific changes (true/false, default: false)."
+    required: false
+    default: "false"
+  github_token:
+    description: "A GitHub token to post PR comments, inline comments, and/or create Check Runs (optional but recommended)."
+    required: false
+outputs:
+  review:
+    description: "The aggregated review output from the AI."
+runs:
+  using: "docker"
+  image: "Dockerfile"
