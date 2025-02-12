@@ -1,9 +1,9 @@
 name: "Repo Ranger"
 description: >
-  An enterprise‑grade GitHub Action that performs detailed, line‑by‑line AI‑driven code reviews.
+  A GitHub Action that performs detailed, line‑by‑line AI‑driven code reviews.
   It handles large diffs by summarizing changes and then reviewing them in chunks.
   Optionally, it creates GitHub Check Runs, posts an aggregated PR comment, and even adds inline code review comments.
-author: "Your Name"
+author: "crazywolf132"
 inputs:
   api_url:
     description: "The API endpoint URL for code review."

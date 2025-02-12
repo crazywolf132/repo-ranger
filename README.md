@@ -1,6 +1,6 @@
 # Repo Ranger
 
-**Repo Ranger** is an enterprise‑grade, AI‑driven GitHub Action written in Go that provides detailed, line‑by‑line code reviews. It automatically handles large diffs by summarizing changes and then reviewing them in chunks. With robust API integration, configurable timeouts, and native GitHub Checks/PR commenting (including inline review comments with code suggestions and detailed reasoning), Repo Ranger ensures your team’s code quality is maintained across your entire organization.
+**Repo Ranger** is an AI‑driven GitHub Action written in Go that provides detailed, line‑by‑line code reviews. It automatically handles large diffs by summarizing changes and then reviewing them in chunks. With robust API integration, configurable timeouts, and native GitHub Checks/PR commenting (including inline review comments with code suggestions and detailed reasoning), Repo Ranger helps maintain your team's code quality.
 
 ## Features
 

@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/crazywolf132/repo-ranger/pkg/api"
 	"github.com/crazywolf132/repo-ranger/pkg/diff"
 	"github.com/crazywolf132/repo-ranger/pkg/github"
 	"github.com/crazywolf132/repo-ranger/pkg/types"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -24,7 +24,7 @@ func init() {
 	// Configure logrus
 	log.SetFormatter(&log.JSONFormatter{})
 	log.SetOutput(os.Stdout)
-	
+
 	// Set log level based on environment variable, default to info
 	logLevel := os.Getenv("LOG_LEVEL")
 	if logLevel == "" {
@@ -112,7 +112,7 @@ func main() {
 		}
 	} else {
 		log.WithField("diffSize", len(trimmedDiff)).Info("Large diff detected; performing multi-step review")
-		
+
 		chunks := diffRunner.SplitIntoChunks(trimmedDiff, maxChunkSize)
 		var reviews []string
 
@@ -122,7 +122,7 @@ func main() {
 				"total": len(chunks),
 				"size":  len(chunk),
 			}).Info("Reviewing chunk")
-			
+
 			review, err := apiClient.Review(ctx, model, buildDetailedPrompt(chunk))
 			if err != nil {
 				log.WithFields(log.Fields{
