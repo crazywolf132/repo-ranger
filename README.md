@@ -156,7 +156,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Repo Ranger Code Review
-        uses: repo-ranger/repo-ranger@v1
+        uses: crazywolf132/repo-ranger@v1.0.0
         with:
           api_key: ${{ secrets.REVIEW_API_KEY }}
           api_url: 'https://your-review-api-endpoint.com'
@@ -171,7 +171,7 @@ To build and run Repo Ranger locally:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/repo-ranger/repo-ranger.git
+git clone https://github.com/crazywolf132/repo-ranger.git
 cd repo-ranger
 ```
 
@@ -193,7 +193,7 @@ The simplest configuration posts an aggregated review comment on the PR:
 
 ```yaml
 - name: Repo Ranger Code Review
-  uses: repo-ranger/repo-ranger@v1
+  uses: crazywolf132/repo-ranger@v1.0.0
   with:
     api_key: ${{ secrets.REVIEW_API_KEY }}
     api_url: 'https://your-review-api-endpoint.com'
@@ -206,7 +206,7 @@ Enable all feedback mechanisms (PR comment, inline comments, and GitHub Checks):
 
 ```yaml
 - name: Repo Ranger Code Review
-  uses: repo-ranger/repo-ranger@v1
+  uses: crazywolf132/repo-ranger@v1.0.0
   with:
     api_key: ${{ secrets.REVIEW_API_KEY }}
     api_url: 'https://your-review-api-endpoint.com'
