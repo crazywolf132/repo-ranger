@@ -15,9 +15,9 @@ inputs:
     description: "The model name to use (e.g., gpt-4)."
     required: true
   diff_command:
-    description: "The git diff command to run (default: 'git diff HEAD~1 HEAD')."
+    description: "The git diff command to run (default: 'git --no-pager diff HEAD~1 HEAD')."
     required: false
-    default: "git diff HEAD~1 HEAD"
+    default: "git --no-pager diff HEAD~1 HEAD"
   diff_timeout:
     description: "Timeout (in seconds) for the diff command (default: 30)."
     required: false

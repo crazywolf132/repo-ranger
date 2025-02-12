@@ -1,5 +1,17 @@
 #!/bin/bash
 
+# Create a temporary directory for testing
+TEST_DIR=$(mktemp -d)
+cp ./repo-ranger "$TEST_DIR/"
+cd "$TEST_DIR"
+
+# Initialize a new git repository
+git init
+git config --local user.email "test@example.com"
+git config --local user.name "Test User"
+# Disable git pager
+git config --local core.pager cat
+
 # Set environment variables for testing
 export INPUT_API_KEY="your-openai-api-key"
 export INPUT_API_URL="https://api.openai.com/v1/chat/completions"
@@ -12,9 +24,10 @@ export INPUT_INLINE_COMMENTS="true"
 export INPUT_GITHUB_TOKEN="your-github-token"
 export LOG_LEVEL="debug"
 
-# Ensure we have a base commit
-git add .
-git commit -m "chore: baseline commit" || true
+# Create initial commit
+touch README.md
+git add README.md
+git commit -m "chore: initial commit"
 
 # Create a test branch and some changes
 git checkout -b test-branch
@@ -53,7 +66,7 @@ git add test.go
 git commit -m "test: Add sample Go code with review opportunities"
 
 # Set the diff command to compare against the parent branch
-export INPUT_DIFF_COMMAND="git diff main..test-branch"
+export INPUT_DIFF_COMMAND="git --no-pager diff main..test-branch"
 
 # Show what changes will be reviewed
 echo "Changes to be reviewed:"
@@ -63,5 +76,5 @@ eval $INPUT_DIFF_COMMAND
 ./repo-ranger
 
 # Clean up
-git checkout main
-git branch -D test-branch 
+cd -
+rm -rf "$TEST_DIR" 

@@ -4,7 +4,7 @@
 export INPUT_API_URL="https://api.example.com/review"
 export INPUT_API_KEY="test_key"
 export INPUT_MODEL="gpt-4"
-export INPUT_DIFF_COMMAND="git diff HEAD~1 HEAD"
+export INPUT_DIFF_COMMAND="git --no-pager diff HEAD~1 HEAD"
 export INPUT_DIFF_TIMEOUT="30"
 export INPUT_API_TIMEOUT="30"
 export INPUT_POST_PR_COMMENT="true"

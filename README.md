@@ -46,7 +46,7 @@ The following environment variables are used to configure the tool:
 - `INPUT_MODEL`: Model to use (e.g., "gpt-4", "gpt-3.5-turbo")
 
 ### Optional Configuration
-- `INPUT_DIFF_COMMAND`: Command to generate diff (default: "git diff HEAD~1 HEAD")
+- `INPUT_DIFF_COMMAND`: Command to generate diff (default: "git --no-pager diff HEAD~1 HEAD")
 - `INPUT_DIFF_TIMEOUT`: Timeout in seconds for diff command (default: 30)
 - `INPUT_API_TIMEOUT`: Timeout in seconds for API calls (default: 30)
 - `INPUT_POST_PR_COMMENT`: Whether to post review as PR comment (default: true)
