@@ -16,5 +16,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o repo-ranger .
 # Final Stage: Use a minimal image
 FROM alpine:latest
 WORKDIR /app
+
+# Install Git (required for diff extraction)
+RUN apk add --no-cache git
+
 COPY --from=builder /app/repo-ranger .
 ENTRYPOINT ["/app/repo-ranger"]
